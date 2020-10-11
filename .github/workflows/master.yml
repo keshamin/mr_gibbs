@@ -32,7 +32,7 @@ jobs:
         run: echo "VERSION=$(cat VERSION)" >> $GITHUB_ENV
       
       - name: Build a docker image
-        run: docker build -t docker.pkg.github.com/keshamin/mr_gibbs/mr_gibbs:$VERSION
+        run: docker build -t docker.pkg.github.com/keshamin/mr_gibbs/mr_gibbs:$VERSION .
 
       - name: Push to GitHub Packages
         uses: docker/build-push-action@v1
