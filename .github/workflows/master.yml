@@ -13,8 +13,6 @@ on:
     
 env:
   IMAGE_NAME: mr_gibbs
-  REGISTRY_PREFIX: docker.pkg.github.com/
-  IMAGE: "$REGISTRY_PREFIX$GITHUB_REPOSITORY/$IMAGE_NAME"
   
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -30,9 +28,6 @@ jobs:
       
       - name: Extract version
         run: echo "VERSION=$(cat VERSION)" >> $GITHUB_ENV
-      
-      - name: Build a docker image
-        run: docker build -t docker.pkg.github.com/keshamin/mr_gibbs/mr_gibbs:$VERSION .
 
       - name: Push to GitHub Packages
         uses: docker/build-push-action@v1
@@ -40,5 +35,5 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           registry: docker.pkg.github.com
-          repository: $GITHUB_REPOSITORY/$IMAGE_NAME
-          tags: $VERSION
+          repository: ${{ env.GITHUB_REPOSITORY}}/${{ env.IMAGE_NAME }}
+          tags: ${{ env.VERSION }}
