@@ -1,0 +1,4 @@
+venv/*
+db.shelve
+.idea/*
+__pycache__/*
