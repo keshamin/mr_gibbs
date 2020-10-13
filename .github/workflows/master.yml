@@ -29,6 +29,8 @@ jobs:
       - name: Build tags
         id: build_tags
         run: |
+          DOCKER_IMAGE=name/app
+          VERSION=noop
           VER="0.6"
           if [ "${{ github.event_name }}" = "push" ]; then
             TAGS="$VER"
