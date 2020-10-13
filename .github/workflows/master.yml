@@ -29,9 +29,9 @@ jobs:
       - name: Build tags
         id: build_tags
         run: |
-          VERSION=$(cat VERSION)
+          VER=$(cat VERSION)
           if [ "${{ github.event_name }}" = "push" ]; then
-            TAGS="$VERSION"
+            TAGS="$VER"
           elif [ "${{ github.event_name }}" = "pr" ]; then
             TAGS="$(echo ${GITHUB_REF#refs/heads/} | sed -r 's#/+#-#g')-${GITHUB_SHA:0:7}"
           echo ::set-output name=tags::${TAGS}
