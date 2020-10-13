@@ -31,9 +31,16 @@ jobs:
         run: |
           VERSION=$(cat VERSION)
           if [ "${{ github.event_name }}" = "push" ]; then
+            echo "TAGS = $IMAGE_NAME:$VERSION"
             TAGS="$IMAGE_NAME:$VERSION"
+            echo $TAGS
           elif [ "${{ github.event_name }}" = "pr" ]; then
+            echo ${GITHUB_REF#refs/heads/}
+            echo ${GITHUB_REF#refs/heads/} | sed -r 's#/+#-#g'
+            echo ${GITHUB_SHA:0:7}
+            echo "$IMAGE_NAME:$(echo ${GITHUB_REF#refs/heads/} | sed -r 's#/+#-#g')-${GITHUB_SHA:0:7}"
             TAGS="$IMAGE_NAME:$(echo ${GITHUB_REF#refs/heads/} | sed -r 's#/+#-#g')-${GITHUB_SHA:0:7}"
+            echo $TAGS
           fi
           echo "TAGS: ${TAGS}"
           echo ::set-output name=tags::${TAGS}
