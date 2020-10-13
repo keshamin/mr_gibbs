@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     
 env:
-  IMAGE_NAME: mr_gibbs
+  IMAGE_NAME: keshamin/mr_gibbs
   
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -31,9 +31,9 @@ jobs:
         run: |
           VERSION=$(cat VERSION)
           if [ "${{ github.event_name }}" = "push" ]; then
-            TAGS="$VERSION"
+            TAGS="$IMAGE_NAME:$VERSION"
           elif [ "${{ github.event_name }}" = "pr" ]; then
-            TAGS="$(echo ${GITHUB_REF#refs/heads/} | sed -r 's#/+#-#g')-${GITHUB_SHA:0:7}"
+            TAGS="$IMAGE_NAME:$(echo ${GITHUB_REF#refs/heads/} | sed -r 's#/+#-#g')-${GITHUB_SHA:0:7}"
           fi
           echo ::set-output name=tags::${TAGS}
           
