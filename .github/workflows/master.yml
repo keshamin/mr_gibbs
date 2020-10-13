@@ -29,7 +29,7 @@ jobs:
       - name: Build tags
         id: build_tags
         run: |
-          VER=$(cat VERSION)
+          VER="0.6"
           if [ "${{ github.event_name }}" = "push" ]; then
             TAGS="$VER"
           elif [ "${{ github.event_name }}" = "pr" ]; then
