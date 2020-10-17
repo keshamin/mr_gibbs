@@ -42,7 +42,7 @@ jobs:
         id: build_tags
         run: |
           VERSION=$(cat VERSION)
-          IMAGE_NAME = ${{ steps.build_image_name.output.image_name }}
+          IMAGE_NAME=${{ steps.build_image_name.output.image_name }}
           if [ "${{ github.event_name }}" = "push" ]; then
             echo "TAGS = $IMAGE_NAME:$VERSION"
             TAGS="$IMAGE_NAME:$VERSION"
