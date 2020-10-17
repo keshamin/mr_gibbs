@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     
 env:
-  IMAGE_NAME: mr_gibbs
+  REGISTRY: docker.pkg.github.com
   
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -26,14 +26,48 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
       
-      - name: Extract version
-        run: echo "VERSION=$(cat VERSION)" >> $GITHUB_ENV
+      - name: Build Image name
+        id: build_image_name
+        shell: python
+        run: |
+          import os
+          user_repo = '${{ github.repository }}'
+          repo = user_repo.split('/')[1]
+          packages_docker_repo = os.path.join(user_repo, repo)
+          print('::set-output name=packages_docker_repo::{}'.format(packages_docker_repo))
+      
+      - name: Build tags
+        id: build_tags
+        run: |
+          VERSION=$(cat VERSION)
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAGS="$VERSION"
+            echo $TAGS
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo ${{ github.head_ref }}
+            echo ${{ github.head_ref }} | sed -r 's#/+#-#g'
+            TAGS="$(echo ${{ github.head_ref }} | sed -r 's#/+#-#g')-${GITHUB_SHA:0:7}"
+            echo $TAGS
+          fi
+          echo "TAGS: ${TAGS}"
+          echo ::set-output name=tags::${TAGS}
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      
+      - name: Login GitHubContainer Registry
+        uses: docker/login-action@v1 
+        with:
+          registry: docker.pkg.github.com
+          username: ${{ github.actor }}		          
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
       - name: Push to GitHub Packages
         uses: docker/build-push-action@v1
         with:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-          registry: docker.pkg.github.com
-          repository: ${{ github.repository }}/${{ env.IMAGE_NAME }}
-          tags: ${{ env.VERSION }}
+          registry: ${{ env.REGISTRY }}
+          repository: ${{ steps.build_image_name.outputs.packages_docker_repo }}
+          tags: ${{ steps.build_tags.outputs.tags }}
+          push: true
