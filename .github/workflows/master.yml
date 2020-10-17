@@ -38,7 +38,7 @@ jobs:
             repo
           ])
           print(image_full_name)
-          print(f'::set-output name=image_name::{image_full_name}')
+          print('::set-output name=image_name::{}'.format(image_full_name))
       
       - name: Build tags
         id: build_tags
