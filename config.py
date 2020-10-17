@@ -45,3 +45,5 @@ SHELVENAME = os.environ.get(prefixed('SHELVENAME'), default='db.shelve')
 TRACKER = os.environ.get(prefixed('TRACKER'), default='http://rutor.info')
 
 REMOVE_DIALOG_TIMEOUT = int(os.environ.get(prefixed('REMOVE_DIALOG_TIMEOUT'), default=120))
+
+DEBUG = bool(os.environ.get('DEBUG', default=False))

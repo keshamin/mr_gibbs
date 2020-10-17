@@ -1,4 +1,5 @@
 #! /usr/bin/env python3.6
+import io
 from base64 import b64encode
 import flask
 import requests
@@ -12,7 +13,8 @@ import telebot.types as tb_types
 from config import *
 import config
 from smarthomebot import SmartHomeBot
-from utils import get_search_results, prepare_response_list, paths_to_dict, files_dict_part, get_legal_users_ids
+from utils import get_search_results, prepare_response_list, paths_to_dict, files_dict_part, get_legal_users_ids, \
+    extract_filename
 from markups import get_inline_action_markup, inline_arrows_markup, get_inline_category_markup, \
     get_inline_confirm_removing_markup, inline_file_browser_expired_markup, get_inline_files_markup
 
@@ -169,12 +171,12 @@ def download_torrent(cb):
         link = db[f'{cb.message.chat.id}_link']
         del db[f'{cb.message.chat.id}_link']
 
-    bin_torrent = requests.get(link).content
+    r = requests.get(link)
+    filename = extract_filename(r.headers)
+    file_like = io.BytesIO(r.content)
+    file_like.name = filename if filename else 'file.torrent'
 
-    with NamedTemporaryFile('rb+', suffix='.torrent') as temp_file:
-        temp_file.write(bin_torrent)
-        temp_file.seek(0)
-        bot.send_document(cb.message.chat.id, temp_file)
+    bot.send_document(cb.message.chat.id, file_like)
 
     bot.delete_message(cb.message.chat.id, cb.message.message_id)
 
@@ -325,10 +327,15 @@ def handle_suggestion():
     return flask.Response(status=200)
 
 
-bot.remove_webhook()
-time.sleep(0.1)
-bot.set_webhook(url=config.WEBHOOK_URL_BASE + config.WEBHOOK_URL_PATH)
+if __name__ == '__main__':
+    if config.DEBUG:
+        bot.polling()
 
-app.run(host=config.WEBHOOK_HOST,
-        port=config.WEBHOOK_PORT,
-        debug=True)
+    else:
+        bot.remove_webhook()
+        time.sleep(0.1)
+        bot.set_webhook(url=config.WEBHOOK_URL_BASE + config.WEBHOOK_URL_PATH)
+
+        app.run(host=config.WEBHOOK_HOST,
+                port=config.WEBHOOK_PORT,
+                debug=True)
