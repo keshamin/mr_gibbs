@@ -31,34 +31,26 @@ jobs:
         shell: python
         run: |
           import os
-          
           user_repo = '${{ github.repository }}'
           repo = user_repo.split('/')[1]
-          image_full_name = os.path.join('${{ env.REGISTRY }}', '${{ github.repository }}', repo)
-          print(image_full_name)
-          print('::set-output name=image_name::{}'.format(image_full_name))
+          packages_docker_repo = os.path.join(user_repo, repo)
+          print('::set-output name=packages_docker_repo::{}'.format(packages_docker_repo))
       
       - name: Build tags
         id: build_tags
         run: |
           VERSION=$(cat VERSION)
-          IMAGE_NAME=${{ steps.build_image_name.outputs.image_name }}
           if [ "${{ github.event_name }}" = "push" ]; then
-            echo "TAGS = $IMAGE_NAME:$VERSION"
-            TAGS="$IMAGE_NAME:$VERSION"
+            TAGS="$VERSION"
             echo $TAGS
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
             echo ${{ github.head_ref }}
             echo ${{ github.head_ref }} | sed -r 's#/+#-#g'
-            echo "$IMAGE_NAME:$(echo ${{ github.head_ref }} | sed -r 's#/+#-#g')-${GITHUB_SHA:0:7}"
-            TAGS="$IMAGE_NAME:$(echo ${{ github.head_ref }} | sed -r 's#/+#-#g')-${GITHUB_SHA:0:7}"
+            TAGS="$(echo ${{ github.head_ref }} | sed -r 's#/+#-#g')-${GITHUB_SHA:0:7}"
             echo $TAGS
           fi
           echo "TAGS: ${TAGS}"
           echo ::set-output name=tags::${TAGS}
-        
-      - name: Check tags
-        run: echo ${{ steps.build_tags.outputs.tags }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
@@ -71,7 +63,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Push to GitHub Packages
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v1
         with:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ${{ env.REGISTRY }}
+          repository: ${{ steps.build_image_name.outputs.packages_docker_repo }}
           tags: ${{ steps.build_tags.outputs.tags }}
           push: true
