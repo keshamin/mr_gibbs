@@ -50,7 +50,6 @@ jobs:
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
             echo ${{ github.head_ref }}
             echo ${{ github.head_ref }} | sed -r 's#/+#-#g'
-            echo ${G
             echo "$IMAGE_NAME:$(echo ${{ github.head_ref }} | sed -r 's#/+#-#g')-${GITHUB_SHA:0:7}"
             TAGS="$IMAGE_NAME:$(echo ${{ github.head_ref }} | sed -r 's#/+#-#g')-${GITHUB_SHA:0:7}"
             echo $TAGS
