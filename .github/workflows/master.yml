@@ -30,6 +30,8 @@ jobs:
         id: build_image_name
         shell: python
         run: |
+          import os
+          
           user_repo = '${{ github.repository }}'
           repo = user_repo.split('/')[1]
           image_full_name = os.path.join([
