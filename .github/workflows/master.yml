@@ -34,11 +34,7 @@ jobs:
           
           user_repo = '${{ github.repository }}'
           repo = user_repo.split('/')[1]
-          image_full_name = os.path.join([
-            '${{ env.REGISTRY }}',
-            '${{ github.repository }}',
-            repo
-          ])
+          image_full_name = os.path.join('${{ env.REGISTRY }}', '${{ github.repository }}', repo)
           print(image_full_name)
           print('::set-output name=image_name::{}'.format(image_full_name))
       
