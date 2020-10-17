@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     
 env:
-  IMAGE_NAME: keshamin/mr_gibbs
+  REGISTRY: docker.pkg.github.com
   
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -26,20 +26,35 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
       
+      - name: Build Image name
+        id: build_image_name
+        shell: python
+        run: |
+          user_repo = '${{ github.repository }}'
+          repo = user_repo.split('/')[1]
+          image_full_name = os.path.join([
+            '${{ env.REGISTRY }}',
+            '${{ github.repository }}',
+            repo
+          ])
+          print(image_full_name)
+          print(f'::set-output name=image_name::{image_full_name}')
+      
       - name: Build tags
         id: build_tags
         run: |
           VERSION=$(cat VERSION)
+          IMAGE_NAME = ${{ steps.build_image_name.output.image_name }}
           if [ "${{ github.event_name }}" = "push" ]; then
             echo "TAGS = $IMAGE_NAME:$VERSION"
             TAGS="$IMAGE_NAME:$VERSION"
             echo $TAGS
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo ${GITHUB_REF#refs/heads/}
-            echo ${GITHUB_REF#refs/heads/} | sed -r 's#/+#-#g'
-            echo ${GITHUB_SHA:0:7}
-            echo "$IMAGE_NAME:$(echo ${GITHUB_REF#refs/heads/} | sed -r 's#/+#-#g')-${GITHUB_SHA:0:7}"
-            TAGS="$IMAGE_NAME:$(echo ${GITHUB_REF#refs/heads/} | sed -r 's#/+#-#g')-${GITHUB_SHA:0:7}"
+            echo ${{ github.head_ref }}
+            echo ${{ github.head_ref }} | sed -r 's#/+#-#g'
+            echo ${G
+            echo "$IMAGE_NAME:$(echo ${{ github.head_ref }} | sed -r 's#/+#-#g')-${GITHUB_SHA:0:7}"
+            TAGS="$IMAGE_NAME:$(echo ${{ github.head_ref }} | sed -r 's#/+#-#g')-${GITHUB_SHA:0:7}"
             echo $TAGS
           fi
           echo "TAGS: ${TAGS}"
