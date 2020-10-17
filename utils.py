@@ -1,9 +1,12 @@
 import os
+import re
+from typing import Optional
+
 from bs4 import BeautifulSoup
-from urllib.request import urlopen
 from urllib.parse import urljoin, quote
 from collections import OrderedDict
 import requests
+from requests.structures import CaseInsensitiveDict
 
 from config import TRACKER, ADMIN_ID, USERS_IDS
 
@@ -142,3 +145,16 @@ def calc_selected_set(files_dict):
         else:
             selected_set.union(calc_selected_set(item))
     return selected_set
+
+
+def extract_filename(h: CaseInsensitiveDict) -> Optional[str]:
+    """
+    Extracts filename from headers of requests.Response
+    :param h: headers dict
+    :return: filename or None
+    """
+    d = h['content-disposition']
+    found = re.findall("filename=(.+)", d)
+    if not found:
+        return None
+    return found[0]
