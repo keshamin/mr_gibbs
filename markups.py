@@ -1,3 +1,5 @@
+from typing import Union
+
 from telebot import types
 import shelve
 import hashlib
@@ -52,13 +54,33 @@ def get_inline_action_markup(tid):
 
     # {'start': '▶️', 'stop': '⛔', 'remove': '🗑', 'files': '📂'}
     action_emoji = OrderedDict([
-        ('start', '▶️'),
-        ('stop', '⛔'),
+        ('start_stop', '⏯'),
         ('files', '📂'),
         ('remove', '🗑'),
     ])
     markup.add(*[types.InlineKeyboardButton(text=emoji, callback_data='{} {}'.format(action, tid))
                  for action, emoji in action_emoji.items()])
+    markup.add(types.InlineKeyboardButton(text='⚙', callback_data='extra_actions'))
+    return markup
+
+
+class ExtraActions:
+    SET_LOCATION = 'set_location'
+    BACK_TO_MAIN = 'back_to_main'
+
+
+def build_extra_actions_markup() -> types.InlineKeyboardMarkup:
+    markup = types.InlineKeyboardMarkup(row_width=1)
+
+    extra_actions = {
+        M.SET_LOCATION_BUTTON: ExtraActions.SET_LOCATION
+    }
+
+    for label, data in extra_actions.items():
+        markup.add(types.InlineKeyboardButton(text=label, callback_data=data))
+
+    markup.add(types.InlineKeyboardButton(text=M.BACK, callback_data=ExtraActions.BACK_TO_MAIN))
+
     return markup
 
 
@@ -119,3 +141,5 @@ def get_inline_confirm_removing_markup(tid):
         )
     return markup
 
+
+extra_actions_markup = build_extra_actions_markup()

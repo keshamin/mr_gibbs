@@ -11,6 +11,7 @@ class M(object):
     YES = 'Да'
     NO = 'Нет'
     CANCEL = 'Отмена'
+    BACK = 'Назад'
 
     NO_TORRENTS = 'Список торрентов пуст.'
     LINK_NOT_FOUND_IN_DB = 'Ссылка не найдена в базе данных.'
@@ -59,3 +60,9 @@ class M(object):
     @staticmethod
     def NOT_FOUND_ON_TRACKER(query):
         return f'По запросу {query} ничего не найдено.'
+
+    # --- Extra actions ---
+
+
+    SET_LOCATION_BUTTON = '📁 Изменить расположение'
+
