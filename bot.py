@@ -22,7 +22,7 @@ from utils import get_search_results, prepare_response_list, paths_to_dict, file
     extract_filename, humanize_bytes
 from markups import get_inline_action_markup, inline_arrows_markup, get_inline_category_markup, \
     get_inline_confirm_removing_markup, inline_file_browser_expired_markup, get_inline_files_markup, ExtraActions, \
-    extra_actions_markup
+    extra_actions_markup, CallbackCommands, cancel_markup
 
 MAX_INPUT_FILE_SIZE = 10 ** 6   # ~1 MB
 
@@ -134,6 +134,13 @@ def remove_torrent(callback):
                      reply_markup=get_inline_confirm_removing_markup(tid))
 
 
+@bot.callback_query_handler(lambda cb: cb.data == CallbackCommands.CANCEL_MULTI_STEP_ACTION)
+def cancel_multi_step_command(cb: tb_types.CallbackQuery):
+    if cb.message.chat.id in bot.next_step_handlers.keys():
+        del bot.next_step_handlers[cb.message.chat.id]
+    bot.delete_message(cb.message.chat.id, cb.message.message_id)
+
+
 @bot.callback_query_handler(lambda cb: cb.data.startswith('confirm_removing'))
 def confirm_removing(callback):
     answer, tid, expire_timestamp = callback.data.split()[1:]
@@ -148,8 +155,6 @@ def confirm_removing(callback):
     elif answer == 'torrent_and_data':
         bot.trans.remove_torrent(tid, delete_data=True)
         bot.send_message(callback.message.chat.id, bot.M.TORRENT_AND_DATA_REMOVED(tid))
-    elif answer == 'cancel':
-        pass
     else:
         bot.send_message(callback.message.chat.id, bot.M.ERROR_INVALID_ANSWER)
         raise ValueError('Invalid data in remove confirmation.')
@@ -334,7 +339,7 @@ def set_torrent_location(cb: tb_types.CallbackQuery):
     main_markup = get_inline_action_markup(tid)
     bot.edit_message_reply_markup(cb.message.chat.id, cb.message.message_id, reply_markup=main_markup)
 
-    bot.send_message(origin_msg.chat.id, bot.M.ENTER_NEW_PATH)
+    bot.send_message(origin_msg.chat.id, bot.M.ENTER_NEW_PATH, reply_markup=cancel_markup)
     bot.register_next_step_handler(origin_msg, read_new_torrent_location, tid=tid)
 
 
