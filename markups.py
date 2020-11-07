@@ -52,15 +52,16 @@ def get_inline_category_markup(uid):
 def get_inline_action_markup(tid):
     markup = types.InlineKeyboardMarkup(row_width=4)
 
-    # {'start': '▶️', 'stop': '⛔', 'remove': '🗑', 'files': '📂'}
     action_emoji = OrderedDict([
         ('start_stop', '⏯'),
         ('files', '📂'),
         ('remove', '🗑'),
     ])
-    markup.add(*[types.InlineKeyboardButton(text=emoji, callback_data='{} {}'.format(action, tid))
-                 for action, emoji in action_emoji.items()])
-    markup.add(types.InlineKeyboardButton(text='⚙', callback_data='extra_actions'))
+    markup.add(
+        *[types.InlineKeyboardButton(text=emoji, callback_data='{} {}'.format(action, tid))
+          for action, emoji in action_emoji.items()],
+        types.InlineKeyboardButton(text='⚙️', callback_data='extra_actions')
+    )
     return markup
 
 

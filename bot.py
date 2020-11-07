@@ -1,7 +1,7 @@
 #! /usr/bin/env python3.6
 import io
 from base64 import b64encode
-from typing import Tuple
+from typing import Tuple, Union
 
 import flask
 import requests
@@ -11,6 +11,7 @@ from tempfile import NamedTemporaryFile
 
 import telebot
 import telebot.types as tb_types
+import transmissionrpc
 from transmissionrpc import Torrent
 
 from config import *
@@ -18,7 +19,7 @@ import config
 from smarthomebot import SmartHomeBot
 from trans import TorrentStatuses
 from utils import get_search_results, prepare_response_list, paths_to_dict, files_dict_part, get_legal_users_ids, \
-    extract_filename
+    extract_filename, humanize_bytes
 from markups import get_inline_action_markup, inline_arrows_markup, get_inline_category_markup, \
     get_inline_confirm_removing_markup, inline_file_browser_expired_markup, get_inline_files_markup, ExtraActions, \
     extra_actions_markup
@@ -58,13 +59,17 @@ def show_all_torrents(message):
 
 
 def render_status_message(torrent: Torrent) -> Tuple[str, tb_types.InlineKeyboardMarkup]:
-    simple_template = '{tid}) {status_emoji} {name} ({percent}%)'
+    torrent_template = '{tid}) {status_emoji} {name} ({percent}%)'
     tid = torrent._fields['id'].value
     status_emoji = bot.status_to_emoji[torrent._fields['status'].value]
-    text = simple_template.format(tid=tid, name=torrent._fields['name'].value,
+    text = torrent_template.format(tid=tid, name=torrent._fields['name'].value,
                                   status_emoji=status_emoji, percent=int(torrent.progress))
     markup = get_inline_action_markup(tid)
     return text, markup
+
+
+def parse_tid_from_status_message(msg: str) -> Union[str, int]:
+    return msg[:msg.find(')')]
 
 
 @bot.message_handler(func=lambda message: message.text == 'Поиск 🔍')
@@ -144,7 +149,7 @@ def confirm_removing(callback):
         bot.trans.remove_torrent(tid, delete_data=True)
         bot.send_message(callback.message.chat.id, bot.M.TORRENT_AND_DATA_REMOVED(tid))
     elif answer == 'cancel':
-        bot.send_message(callback.message.chat.id, bot.M.NOT_REMOVING)
+        pass
     else:
         bot.send_message(callback.message.chat.id, bot.M.ERROR_INVALID_ANSWER)
         raise ValueError('Invalid data in remove confirmation.')
@@ -321,6 +326,41 @@ def back_to_main_actions(cb: tb_types.CallbackQuery):
     bot.edit_message_reply_markup(cb.message.chat.id, cb.message.message_id, reply_markup=main_markup)
 
 
+@bot.callback_query_handler(lambda cb: cb.data == ExtraActions.SET_LOCATION)
+def set_torrent_location(cb: tb_types.CallbackQuery):
+    origin_msg: tb_types.Message = cb.message
+    tid = parse_tid_from_status_message(origin_msg.text)
+    # Reset torrent tool panel to main
+    main_markup = get_inline_action_markup(tid)
+    bot.edit_message_reply_markup(cb.message.chat.id, cb.message.message_id, reply_markup=main_markup)
+
+    bot.send_message(origin_msg.chat.id, bot.M.ENTER_NEW_PATH)
+    bot.register_next_step_handler(origin_msg, read_new_torrent_location, tid=tid)
+
+
+def read_new_torrent_location(message: tb_types.Message, tid: Union[str, int]):
+    path = message.text.strip()
+    torrent = bot.trans.get_torrent(torrent_id=tid)
+    try:
+        free_space = bot.trans.free_space(path)
+    except transmissionrpc.TransmissionError:
+        bot.send_message(message.chat.id, bot.M.LOCATION_SET_FAILED)
+        return
+
+    if free_space < torrent.sizeWhenDone:
+        bot.send_message(message.chat.id, bot.M.NOT_ENOUGH_SPACE(humanize_bytes(torrent.sizeWhenDone),
+                                                                 humanize_bytes(free_space)))
+        return
+
+    try:
+        torrent.locate_data(path)
+    except transmissionrpc.TransmissionError:
+        bot.send_message(message.chat.id, bot.M.LOCATION_SET_FAILED)
+        return
+
+    bot.send_message(message.chat.id, bot.M.LOCATION_SET_OK)
+
+
 @bot.message_handler(content_types=['document'])
 def handle_torrent_file_from_user(msg: tb_types.Message):
     doc: tb_types.Document = msg.document
@@ -331,11 +371,6 @@ def handle_torrent_file_from_user(msg: tb_types.Message):
     with shelve.open(SHELVENAME) as database:
         database[f'{msg.chat.id}_link'] = telebot.apihelper.get_file_url(token=TOKEN, file_id=doc.file_id)
         bot.send_message(msg.chat.id, 'Пришли категорию', reply_markup=get_inline_category_markup(msg.chat.id))
-
-
-@bot.callback_query_handler(lambda: True)
-def default_cb(cb):
-    print(cb.data)
 
 
 app = flask.Flask(__name__)
