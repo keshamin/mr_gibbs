@@ -1,6 +1,8 @@
 #! /usr/bin/env python3.6
 import io
 from base64 import b64encode
+from typing import Tuple, Union
+
 import flask
 import requests
 import shelve
@@ -9,15 +11,18 @@ from tempfile import NamedTemporaryFile
 
 import telebot
 import telebot.types as tb_types
+import transmissionrpc
+from transmissionrpc import Torrent
 
 from config import *
 import config
 from smarthomebot import SmartHomeBot
+from trans import TorrentStatuses
 from utils import get_search_results, prepare_response_list, paths_to_dict, files_dict_part, get_legal_users_ids, \
-    extract_filename
+    extract_filename, humanize_bytes
 from markups import get_inline_action_markup, inline_arrows_markup, get_inline_category_markup, \
-    get_inline_confirm_removing_markup, inline_file_browser_expired_markup, get_inline_files_markup
-
+    get_inline_confirm_removing_markup, inline_file_browser_expired_markup, get_inline_files_markup, ExtraActions, \
+    extra_actions_markup, CallbackCommands, cancel_markup
 
 MAX_INPUT_FILE_SIZE = 10 ** 6   # ~1 MB
 
@@ -44,18 +49,27 @@ def start(message):
 
 @bot.message_handler(func=lambda message: message.text == 'Торренты ↕️')
 def show_all_torrents(message):
-    simple_template = '{tid}) {status_emoji} {name} ({percent}%)'
     torrents = bot.trans.get_torrents()
     if torrents:
         for t in torrents:
-            tid = t._fields['id'].value
-            status_emoji = bot.status_to_emoji[t._fields['status'].value]
-            bot.send_message(message.chat.id,
-                             simple_template.format(tid=tid, name=t._fields['name'].value,
-                                                    status_emoji=status_emoji, percent=int(t.progress)),
-                             reply_markup=get_inline_action_markup(tid))
+            text, markup = render_status_message(t)
+            bot.send_message(message.chat.id, text, reply_markup=markup)
         return
     bot.send_message(message.chat.id, bot.M.NO_TORRENTS)
+
+
+def render_status_message(torrent: Torrent) -> Tuple[str, tb_types.InlineKeyboardMarkup]:
+    torrent_template = '{tid}) {status_emoji} {name} ({percent}%)'
+    tid = torrent._fields['id'].value
+    status_emoji = bot.status_to_emoji[torrent._fields['status'].value]
+    text = torrent_template.format(tid=tid, name=torrent._fields['name'].value,
+                                  status_emoji=status_emoji, percent=int(torrent.progress))
+    markup = get_inline_action_markup(tid)
+    return text, markup
+
+
+def parse_tid_from_status_message(msg: str) -> Union[str, int]:
+    return msg[:msg.find(')')]
 
 
 @bot.message_handler(func=lambda message: message.text == 'Поиск 🔍')
@@ -94,18 +108,23 @@ def add_torrent_by_number(message):
             bot.send_message(message.chat.id, 'Торрент с номером {} не найден'.format(num))
 
 
-@bot.callback_query_handler(lambda callback: callback.data.split()[0].lower() == 'start')
-def start_torrent(callback):
+@bot.callback_query_handler(lambda callback: callback.data.split()[0].lower() == 'start_stop')
+def start_stop_torrent(callback: tb_types.CallbackQuery):
     tid = callback.data.split()[1]
-    bot.trans.start_torrent(tid)
-    bot.send_message(callback.message.chat.id, bot.M.TORRENT_STARTED(tid))
+    try:
+        torrent = bot.trans.get_torrent(tid)
+    except KeyError:
+        bot.send_message(callback.message.chat.id, f'Торрент #{tid} не существует!')
+        return
 
+    if torrent.status == TorrentStatuses.STOPPED:
+        torrent.start()
+    else:
+        torrent.stop()
 
-@bot.callback_query_handler(lambda callback: callback.data.split()[0].lower() == 'stop')
-def stop_torrent(callback):
-    tid = callback.data.split()[1]
-    bot.trans.stop_torrent(tid)
-    bot.send_message(callback.message.chat.id, bot.M.TORRENT_STOPPED(tid))
+    torrent = bot.trans.get_torrent(tid)
+    text, markup = render_status_message(torrent)
+    bot.edit_message_text(text, callback.message.chat.id, callback.message.message_id, reply_markup=markup)
 
 
 @bot.callback_query_handler(lambda callback: callback.data.split()[0].lower() == 'remove')
@@ -113,6 +132,13 @@ def remove_torrent(callback):
     tid = callback.data.split()[1]
     bot.send_message(callback.message.chat.id, bot.M.REMOVE_CONFIRMATION(tid),
                      reply_markup=get_inline_confirm_removing_markup(tid))
+
+
+@bot.callback_query_handler(lambda cb: cb.data == CallbackCommands.CANCEL_MULTI_STEP_ACTION)
+def cancel_multi_step_command(cb: tb_types.CallbackQuery):
+    if cb.message.chat.id in bot.next_step_handlers.keys():
+        del bot.next_step_handlers[cb.message.chat.id]
+    bot.delete_message(cb.message.chat.id, cb.message.message_id)
 
 
 @bot.callback_query_handler(lambda cb: cb.data.startswith('confirm_removing'))
@@ -129,13 +155,16 @@ def confirm_removing(callback):
     elif answer == 'torrent_and_data':
         bot.trans.remove_torrent(tid, delete_data=True)
         bot.send_message(callback.message.chat.id, bot.M.TORRENT_AND_DATA_REMOVED(tid))
-    elif answer == 'cancel':
-        bot.send_message(callback.message.chat.id, bot.M.NOT_REMOVING)
     else:
         bot.send_message(callback.message.chat.id, bot.M.ERROR_INVALID_ANSWER)
         raise ValueError('Invalid data in remove confirmation.')
 
     bot.delete_message(callback.message.chat.id, callback.message.message_id)
+
+
+@bot.callback_query_handler(lambda cb: cb.data == 'extra_actions')
+def show_exta_actions(cb: tb_types.CallbackQuery):
+    bot.edit_message_reply_markup(cb.message.chat.id, cb.message.message_id, reply_markup=extra_actions_markup)
 
 
 @bot.callback_query_handler(lambda callback: callback.data.split()[0] in CATEGORIES.keys())
@@ -292,6 +321,49 @@ def check_files(callback):
         bot.send_message(callback.message.chat.id, bot.M.FILES_MARKED(tid=tid, path=path))
     else:
         bot.send_message(callback.message.chat.id, bot.M.FILES_UNMARKED(tid=tid, path=path))
+
+
+@bot.callback_query_handler(lambda cb: cb.data == ExtraActions.BACK_TO_MAIN)
+def back_to_main_actions(cb: tb_types.CallbackQuery):
+    origin_msg: tb_types.Message = cb.message
+    tid = origin_msg.text[:origin_msg.text.find(')')]
+    main_markup = get_inline_action_markup(tid)
+    bot.edit_message_reply_markup(cb.message.chat.id, cb.message.message_id, reply_markup=main_markup)
+
+
+@bot.callback_query_handler(lambda cb: cb.data == ExtraActions.SET_LOCATION)
+def set_torrent_location(cb: tb_types.CallbackQuery):
+    origin_msg: tb_types.Message = cb.message
+    tid = parse_tid_from_status_message(origin_msg.text)
+    # Reset torrent tool panel to main
+    main_markup = get_inline_action_markup(tid)
+    bot.edit_message_reply_markup(cb.message.chat.id, cb.message.message_id, reply_markup=main_markup)
+
+    bot.send_message(origin_msg.chat.id, bot.M.ENTER_NEW_PATH, reply_markup=cancel_markup)
+    bot.register_next_step_handler(origin_msg, read_new_torrent_location, tid=tid)
+
+
+def read_new_torrent_location(message: tb_types.Message, tid: Union[str, int]):
+    path = message.text.strip()
+    torrent = bot.trans.get_torrent(torrent_id=tid)
+    try:
+        free_space = bot.trans.free_space(path)
+    except transmissionrpc.TransmissionError:
+        bot.send_message(message.chat.id, bot.M.LOCATION_SET_FAILED)
+        return
+
+    if free_space < torrent.sizeWhenDone:
+        bot.send_message(message.chat.id, bot.M.NOT_ENOUGH_SPACE(humanize_bytes(torrent.sizeWhenDone),
+                                                                 humanize_bytes(free_space)))
+        return
+
+    try:
+        torrent.locate_data(path)
+    except transmissionrpc.TransmissionError:
+        bot.send_message(message.chat.id, bot.M.LOCATION_SET_FAILED)
+        return
+
+    bot.send_message(message.chat.id, bot.M.LOCATION_SET_OK)
 
 
 @bot.message_handler(content_types=['document'])

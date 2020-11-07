@@ -12,9 +12,8 @@ def prefixed(var_name):
 
 
 # Loading configuration from env-file
-app_dir = os.path.dirname(os.path.abspath(__file__))
 if CONFIG_ENV_FILE in os.listdir():
-    load_dotenv(os.path.join(app_dir, CONFIG_ENV_FILE))
+    load_dotenv(CONFIG_ENV_FILE)
 
 
 # Reading configuration from ENV

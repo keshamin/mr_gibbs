@@ -1,3 +1,5 @@
+from typing import Union
+
 from telebot import types
 import shelve
 import hashlib
@@ -13,14 +15,10 @@ from utils import files_dict_part, calc_selected_set
 main_markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
 main_markup.add(*[types.KeyboardButton(text) for text in ('Торренты ↕️', 'Поиск 🔍')])
 
-category_markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, one_time_keyboard=True)
-category_markup.add(*[types.KeyboardButton(text) for text in ('Movie', 'TV', 'Other')])
 
-action_markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, one_time_keyboard=True)
-action_markup.add(*[types.KeyboardButton(text) for text in ('Start', 'Stop', 'Remove')])
+class CallbackCommands:
+    CANCEL_MULTI_STEP_ACTION = 'cancel_multi_step_action'
 
-yes_no_markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, one_time_keyboard=True)
-yes_no_markup.add(*[types.KeyboardButton(text) for text in ('Да', 'Нет')])
 
 inline_yes_no_markup = types.InlineKeyboardMarkup()
 inline_yes_no_markup.add(*[types.InlineKeyboardButton(text=text, callback_data=data) for text, data in
@@ -36,6 +34,10 @@ inline_arrows_markup.row(types.InlineKeyboardButton(text='Не запускат�
 inline_file_browser_expired_markup = types.InlineKeyboardMarkup()
 inline_file_browser_expired_markup.add(types.InlineKeyboardButton(text=M.FILE_BROWSER_EXPIRED, callback_data='null'))
 
+cancel_button = types.InlineKeyboardButton(M.CANCEL, callback_data=CallbackCommands.CANCEL_MULTI_STEP_ACTION)
+cancel_markup = types.InlineKeyboardMarkup()
+cancel_markup.add(cancel_button)
+
 
 def get_inline_category_markup(uid):
     markup = types.InlineKeyboardMarkup()
@@ -50,15 +52,36 @@ def get_inline_category_markup(uid):
 def get_inline_action_markup(tid):
     markup = types.InlineKeyboardMarkup(row_width=4)
 
-    # {'start': '▶️', 'stop': '⛔', 'remove': '🗑', 'files': '📂'}
     action_emoji = OrderedDict([
-        ('start', '▶️'),
-        ('stop', '⛔'),
+        ('start_stop', '⏯'),
         ('files', '📂'),
         ('remove', '🗑'),
     ])
-    markup.add(*[types.InlineKeyboardButton(text=emoji, callback_data='{} {}'.format(action, tid))
-                 for action, emoji in action_emoji.items()])
+    markup.add(
+        *[types.InlineKeyboardButton(text=emoji, callback_data='{} {}'.format(action, tid))
+          for action, emoji in action_emoji.items()],
+        types.InlineKeyboardButton(text='⚙️', callback_data='extra_actions')
+    )
+    return markup
+
+
+class ExtraActions:
+    SET_LOCATION = 'set_location'
+    BACK_TO_MAIN = 'back_to_main'
+
+
+def build_extra_actions_markup() -> types.InlineKeyboardMarkup:
+    markup = types.InlineKeyboardMarkup(row_width=1)
+
+    extra_actions = {
+        M.SET_LOCATION_BUTTON: ExtraActions.SET_LOCATION
+    }
+
+    for label, data in extra_actions.items():
+        markup.add(types.InlineKeyboardButton(text=label, callback_data=data))
+
+    markup.add(types.InlineKeyboardButton(text=M.BACK, callback_data=ExtraActions.BACK_TO_MAIN))
+
     return markup
 
 
@@ -111,11 +134,13 @@ def get_inline_files_markup(tid, files_dict, current_position=None, chat_id=ADMI
 def get_inline_confirm_removing_markup(tid):
     markup = types.InlineKeyboardMarkup(row_width=2)
     for answer, text in {'torrent_only': M.REMOVE_TORRENT_ONLY,
-                         'torrent_and_data': M.REMOVE_TORRENT_AND_DATA,
-                         'cancel': M.CANCEL}.items():
+                         'torrent_and_data': M.REMOVE_TORRENT_AND_DATA}.items():
         markup.add(types.InlineKeyboardButton(
             text=text,
             callback_data='confirm_removing {} {} {}'.format(answer, tid, time() + REMOVE_DIALOG_TIMEOUT))
         )
+    markup.add(cancel_button)
     return markup
 
+
+extra_actions_markup = build_extra_actions_markup()
