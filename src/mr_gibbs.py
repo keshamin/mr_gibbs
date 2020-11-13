@@ -1,12 +1,12 @@
 from telebot import TeleBot
 
-from config import TRANS_HOST, TRANS_PORT, TRANS_USER, TRANS_PASSWORD
-from markups import main_markup
-from messages import M
-from trans import Trans
+from .config import TRANS_HOST, TRANS_PORT, TRANS_USER, TRANS_PASSWORD
+from .markups import main_markup
+from .messages import M
+from .trans import Trans
 
 
-class SmartHomeBot(TeleBot):
+class MrGibbsBot(TeleBot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

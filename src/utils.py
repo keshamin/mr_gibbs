@@ -8,7 +8,7 @@ from collections import OrderedDict
 import requests
 from requests.structures import CaseInsensitiveDict
 
-from config import TRACKER, ADMIN_ID, USERS_IDS
+from .config import TRACKER, ADMIN_ID, USERS_IDS
 
 
 def get_legal_users_ids():

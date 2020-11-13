@@ -1,16 +1,14 @@
-from typing import Union
+import hashlib
+import os
+import shelve
+from collections import OrderedDict
+from time import time
 
 from telebot import types
-import shelve
-import hashlib
-from time import time
-from collections import OrderedDict
 
-from config import ADMIN_ID, SHELVENAME, REMOVE_DIALOG_TIMEOUT, CATEGORIES_LAYOUT
-from messages import M
-import os
-
-from utils import files_dict_part, calc_selected_set
+from .config import ADMIN_ID, SHELVENAME, REMOVE_DIALOG_TIMEOUT, CATEGORIES_LAYOUT
+from .messages import M
+from .utils import files_dict_part, calc_selected_set
 
 main_markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
 main_markup.add(*[types.KeyboardButton(text) for text in ('Торренты ↕️', 'Поиск 🔍')])

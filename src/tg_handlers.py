@@ -1,37 +1,26 @@
 #! /usr/bin/env python3.6
 import io
+import shelve
+import time
 from base64 import b64encode
 from typing import Tuple, Union
 
-import flask
 import requests
-import shelve
-import time
-from tempfile import NamedTemporaryFile
-
 import telebot
 import telebot.types as tb_types
 import transmissionrpc
 from transmissionrpc import Torrent
 
-from config import *
-import config
-from smarthomebot import SmartHomeBot
-from trans import TorrentStatuses
-from utils import get_search_results, prepare_response_list, paths_to_dict, files_dict_part, get_legal_users_ids, \
+from .trans import TorrentStatuses
+from . import config
+from .init import bot
+from .markups import get_inline_action_markup, inline_arrows_markup, get_inline_category_markup, \
+    get_inline_confirm_removing_markup, inline_file_browser_expired_markup, get_inline_files_markup, cancel_markup, \
+    ExtraActions, extra_actions_markup, CallbackCommands
+from .utils import get_search_results, prepare_response_list, paths_to_dict, files_dict_part, get_legal_users_ids, \
     extract_filename, humanize_bytes
-from markups import get_inline_action_markup, inline_arrows_markup, get_inline_category_markup, \
-    get_inline_confirm_removing_markup, inline_file_browser_expired_markup, get_inline_files_markup, ExtraActions, \
-    extra_actions_markup, CallbackCommands, cancel_markup
 
 MAX_INPUT_FILE_SIZE = 10 ** 6   # ~1 MB
-
-
-# Create shelve if not exists
-with shelve.open(SHELVENAME) as db:
-    db['0'] = None
-
-bot = SmartHomeBot(TOKEN)
 
 
 @bot.message_handler(func=lambda message: message.chat.id not in get_legal_users_ids())
@@ -41,7 +30,7 @@ def permission_denied(message):
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    with shelve.open(SHELVENAME) as db:
+    with shelve.open(config.SHELVENAME) as db:
         db[f'{message.chat.id}_hash_aliases'] = {}
         db[f'{message.chat.id}_file_message_id'] = None
     bot.send_message(message.chat.id, 'Welcome')
@@ -80,7 +69,7 @@ def rutor_search_from_menu(message):
 
 def rutor_search(chat_id, search_request):
     results_list = get_search_results(search_request)
-    with shelve.open(SHELVENAME) as db:
+    with shelve.open(config.SHELVENAME) as db:
         db[f'{chat_id}_search_results'] = results_list
         db[f'{chat_id}_search_cursor'] = 0
     first_five = results_list[:5]
@@ -99,7 +88,7 @@ def rutor_search(chat_id, search_request):
 def add_torrent_by_number(message):
     num = int(message.text[1:])
     db_num = num - 1
-    with shelve.open(SHELVENAME) as db:
+    with shelve.open(config.SHELVENAME) as db:
         try:
             link = db[f'{message.chat.id}_search_results'][db_num]['link']
             db[f'{message.chat.id}_link'] = link
@@ -167,11 +156,11 @@ def show_exta_actions(cb: tb_types.CallbackQuery):
     bot.edit_message_reply_markup(cb.message.chat.id, cb.message.message_id, reply_markup=extra_actions_markup)
 
 
-@bot.callback_query_handler(lambda callback: callback.data.split()[0] in CATEGORIES.keys())
+@bot.callback_query_handler(lambda callback: callback.data.split()[0] in config.CATEGORIES.keys())
 def _get_inline_category_and_add(cb):
     print(cb.data)
-    download_dir = CATEGORIES[cb.data.split()[0]]
-    with shelve.open(SHELVENAME) as db:
+    download_dir = config.CATEGORIES[cb.data.split()[0]]
+    with shelve.open(config.SHELVENAME) as db:
         link_key = f'{cb.message.chat.id}_link'
         if link_key not in db:
             bot.send_message(cb.message.chat.id, bot.M.LINK_NOT_FOUND_IN_DB)
@@ -192,7 +181,7 @@ def _get_inline_category_and_add(cb):
 
 @bot.callback_query_handler(lambda cb: cb.data == 'download_torrent')
 def download_torrent(cb):
-    with shelve.open(SHELVENAME) as db:
+    with shelve.open(config.SHELVENAME) as db:
         link_key = f'{cb.message.chat.id}_link'
         if link_key not in db:
             bot.send_message(cb.message.chat.id, bot.M.LINK_NOT_FOUND_IN_DB)
@@ -216,7 +205,7 @@ def turn_page(cb):
         k = -1
     elif cb.data.lower() == 'right':
         k = 1
-    with shelve.open(SHELVENAME) as db:
+    with shelve.open(config.SHELVENAME) as db:
         cursor = db[f'{cb.message.chat.id}_search_cursor']
         lenght = len(db[f'{cb.message.chat.id}_search_results'])
         control_points = [x for x in range(lenght) if x % 5 == 0]
@@ -247,7 +236,7 @@ def show_files(callback):
 
     files_dict = paths_to_dict(files)
 
-    with shelve.open(SHELVENAME) as db:
+    with shelve.open(config.SHELVENAME) as db:
         db[f'{callback.message.chat.id}_files_tid'] = tid
         db[f'{callback.message.chat.id}_files_dict'] = files_dict
         db[f'{callback.message.chat.id}_hash_aliases'] = {}  # Resetting hashes to keep storage tiny
@@ -261,7 +250,7 @@ def show_files(callback):
     markup = get_inline_files_markup(tid=tid, files_dict=files_dict)
     msg = bot.send_message(callback.message.chat.id, 'Файлы торрента #{}'.format(tid), reply_markup=markup)
 
-    with shelve.open(SHELVENAME) as db:
+    with shelve.open(config.SHELVENAME) as db:
         db[f'{callback.message.chat.id}_file_message_id'] = msg.message_id
 
 
@@ -273,7 +262,7 @@ def go_to_files(callback):
     hexhash = cb_splitted[2]
     # go_to = ' '.join(cb_splitted[2:]) if len(cb_splitted) > 2 else None    # None in case when we return to root
 
-    with shelve.open(SHELVENAME) as db:
+    with shelve.open(config.SHELVENAME) as db:
         files_dict = db[f'{callback.message.chat.id}_files_dict']
         shelved_tid = db[f'{callback.message.chat.id}_files_tid']
 
@@ -304,7 +293,7 @@ def go_to_files(callback):
 def check_files(callback):
     action, tid, hexhash = callback.data.split()
 
-    with shelve.open(SHELVENAME) as db:
+    with shelve.open(config.SHELVENAME) as db:
         path = db[f'{callback.message.chat.id}_hash_aliases'][hexhash]
 
     feed = {
@@ -373,41 +362,7 @@ def handle_torrent_file_from_user(msg: tb_types.Message):
         bot.reply_to(msg, 'Это слишком большой файл. Это точно .torrent ?')
         return
 
-    with shelve.open(SHELVENAME) as database:
-        database[f'{msg.chat.id}_link'] = telebot.apihelper.get_file_url(token=TOKEN, file_id=doc.file_id)
-        bot.send_message(msg.chat.id, 'Пришли категорию', reply_markup=get_inline_category_markup(msg.chat.id))
-
-
-app = flask.Flask(__name__)
-
-
-@app.route(config.WEBHOOK_URL_PATH, methods=['POST'])
-def webhook():
-    if flask.request.headers.get('content-type') == 'application/json':
-        json_string = flask.request.get_data().decode('utf-8')
-        update = telebot.types.Update.de_json(json_string)
-        bot.process_new_updates([update])
-        return ''
-    else:
-        flask.abort(403)
-
-
-@app.route('/suggest', methods=['POST'])
-def handle_suggestion():
-    title = flask.request.get_json()['title']
-    rutor_search(config.ADMIN_ID, title)
-    return flask.Response(status=200)
-
-
-if __name__ == '__main__':
-    if config.DEBUG:
-        bot.polling()
-
-    else:
-        bot.remove_webhook()
-        time.sleep(0.1)
-        bot.set_webhook(url=config.WEBHOOK_URL_BASE + config.WEBHOOK_URL_PATH)
-
-        app.run(host=config.WEBHOOK_HOST,
-                port=config.WEBHOOK_PORT,
-                debug=True)
+    with shelve.open(config.config.SHELVENAME) as database:
+        link = telebot.apihelper.get_file_url(token=config.TOKEN, file_id=doc.file_id)
+        database[f'{msg.chat.id}_link'] = link  # TODO: remove
+        bot.send_message(msg.chat.id, 'Пришли категорию', reply_markup=get_inline_category_markup(link))
