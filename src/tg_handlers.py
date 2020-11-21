@@ -342,7 +342,8 @@ def handle_torrent_file_from_user(msg: tb_types.Message):
         bot.reply_to(msg, 'Это слишком большой файл. Это точно .torrent ?')
         return
 
-    with shelve.open(config.SHELVENAME) as database:
-        link = telebot.apihelper.get_file_url(token=config.TOKEN, file_id=doc.file_id)
-        database[f'{msg.chat.id}_link'] = link  # TODO: remove
-        bot.send_message(msg.chat.id, 'Пришли категорию', reply_markup=get_inline_category_markup(link))
+    link = telebot.apihelper.get_file_url(token=config.TOKEN, file_id=doc.file_id)
+    form = forms.AddTorrentForm()
+    form.torrent_link = link
+    form.fields.location.choices = list(config.CATEGORIES.values())
+    form.send_form(msg.chat.id)
