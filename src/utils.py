@@ -24,12 +24,25 @@ def humanize_tr_string(line):
 
 
 def get_search_results(search_request):
+    """
+    :param search_request: a string to search for
+    :raises ValueError: when search results page cannot be parsed
+    """
     search_url = urljoin(TRACKER, '/search/0/0/100/2/')
     url = urljoin(search_url, quote(search_request))
     page = requests.get(url).content.decode('utf-8')
     soup = BeautifulSoup(page, 'html.parser')
+
+    index_el = soup.find(id='index')
+    if index_el is None:
+        raise ValueError('#index element not found on tracker page!')
+
+    rows = index_el.find_all('tr')
+    if len(rows) == 0:
+        raise ValueError('Rows not found on search page!')
+
     result = []
-    for row in soup.find(id='index').find_all('tr')[1:]:
+    for row in rows[1:]:
         torrent = {}
         td_list = row.find_all('td')
         torrent['link'] = urljoin(TRACKER, row.find('a', class_='downgif')['href'])

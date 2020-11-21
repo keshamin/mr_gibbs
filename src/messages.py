@@ -15,6 +15,7 @@ class M(object):
 
     NO_TORRENTS = 'Список торрентов пуст.'
     LINK_NOT_FOUND_IN_DB = 'Ссылка не найдена в базе данных.'
+    CANNOT_SEARCH = 'Поиск по трекеру не удался. Проверьте доступность трекера.'
 
     @staticmethod
     def TORRENT_STARTED(tid):

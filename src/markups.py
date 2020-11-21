@@ -26,7 +26,6 @@ inline_arrows_markup = types.InlineKeyboardMarkup()
 inline_arrows_markup.row(*[types.InlineKeyboardButton(
     text=arrow, callback_data=text) for arrow, text in [('⬅️', 'left'), ('➡️', 'right')]]
                          )
-inline_arrows_markup.row(types.InlineKeyboardButton(text='Не запускать', callback_data='dont_start'))
 
 
 inline_file_browser_expired_markup = types.InlineKeyboardMarkup()
