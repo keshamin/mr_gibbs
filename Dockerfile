@@ -4,4 +4,4 @@ COPY . ./mr_gibbs
 WORKDIR /mr_gibbs
 RUN pip install -r requirements.txt
 
-CMD ["python", "bot.py"]
+CMD ["python", "run.py"]
