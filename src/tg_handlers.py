@@ -111,10 +111,10 @@ def start_stop_torrent(callback: tb_types.CallbackQuery):
         return
 
     status_code = torrent._fields['status'].value
-    if status_code == TorrentStatus.STOPPED:
-        torrent.start()
-    else:
+    if status_code != TorrentStatus.STOPPED:
         torrent.stop()
+    else:
+        torrent.start()
 
     torrent = transmission.get_torrent(tid)
     text, markup = render_status_message(torrent)
