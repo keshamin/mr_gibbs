@@ -106,10 +106,10 @@ def start_stop_torrent(callback: tb_types.CallbackQuery):
         bot.send_message(callback.message.chat.id, f'Торрент #{tid} не существует!')
         return
 
-    if torrent.status == TorrentStatuses.STOPPED:
-        torrent.start()
-    else:
+    if torrent.status != TorrentStatuses.STOPPED:
         torrent.stop()
+    else:
+        torrent.start()
 
     torrent = bot.trans.get_torrent(tid)
     text, markup = render_status_message(torrent)
