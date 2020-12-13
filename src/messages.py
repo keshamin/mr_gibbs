@@ -17,13 +17,10 @@ class M(object):
     LINK_NOT_FOUND_IN_DB = 'Ссылка не найдена в базе данных.'
     CANNOT_SEARCH = 'Поиск по трекеру не удался. Проверьте доступность трекера.'
 
-    @staticmethod
-    def TORRENT_STARTED(tid):
-        return 'Торрент #{} был запущен.'.format(tid)
-
-    @staticmethod
-    def TORRENT_STOPPED(tid):
-        return 'Торрент #{} был остановлен.'.format(tid)
+    TORRENT_STARTED = staticmethod(lambda tid: f'Запуск торрента #{tid}...')
+    TORRENT_STOPPED = staticmethod(lambda tid: f'Остановка торрента #{tid}...')
+    FAILED_TO_START = 'Не удалось запустить торрент!'
+    FAILED_TO_STOP = 'Не удалось остановить торрент!'
 
     # --- Removing torrent ---
     @staticmethod

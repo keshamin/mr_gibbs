@@ -11,7 +11,7 @@ import transmissionrpc
 from transmissionrpc import Torrent
 
 from . import config, forms
-from .init import bot, transmission, m
+from .init import bot, transmission, m, scheduler
 from .markups import get_inline_action_markup, inline_arrows_markup, get_inline_category_markup, \
     get_inline_confirm_removing_markup, inline_file_browser_expired_markup, get_inline_files_markup, cancel_markup, \
     ExtraActions, extra_actions_markup, CallbackCommands
@@ -111,14 +111,28 @@ def start_stop_torrent(callback: tb_types.CallbackQuery):
         return
 
     status_code = torrent._fields['status'].value
-    if status_code != TorrentStatus.STOPPED:
-        torrent.stop()
-    else:
-        torrent.start()
+    to_start_torrent = status_code == TorrentStatus.STOPPED.value
 
-    torrent = transmission.get_torrent(tid)
-    text, markup = render_status_message(torrent)
-    bot.edit_message_text(text, callback.message.chat.id, callback.message.message_id, reply_markup=markup)
+    if to_start_torrent:
+        torrent.start()
+        bot.answer_callback_query(callback.id, m.TORRENT_STARTED(tid))
+    else:
+        torrent.stop()
+        bot.answer_callback_query(callback.id, m.TORRENT_STOPPED(tid))
+
+    def update_status():
+        start_time = time.time()
+        while time.time() < start_time + 4:
+            torrent = transmission.get_torrent(tid)
+            text, markup = render_status_message(torrent)
+            if text != callback.message.text:
+                bot.edit_message_text(text, callback.message.chat.id, callback.message.message_id, reply_markup=markup)
+                return
+            time.sleep(0.3)
+        msg = m.FAILED_TO_START if to_start_torrent else m.FAILED_TO_STOP
+        bot.send_message(callback.message.chat.id, msg)
+
+    scheduler.add_job(update_status)
 
 
 @bot.callback_query_handler(lambda callback: callback.data.split()[0].lower() == 'remove')
