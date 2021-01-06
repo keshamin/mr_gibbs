@@ -21,7 +21,7 @@ def submit_handler(form: 'AddTorrentForm', callback: tb_types.CallbackQuery):
         return
 
     torrent_base64 = base64.b64encode(response.content).decode()
-    torrent = transmission.add_torrent(torrent_base64, download_dir=form.location, paused=form.start_on_add)
+    torrent = transmission.add_torrent(torrent_base64, download_dir=form.location, paused=not form.start_on_add)
     torrent = transmission.get_torrent(torrent.id)
 
     text, markup = render_status_message(torrent)
