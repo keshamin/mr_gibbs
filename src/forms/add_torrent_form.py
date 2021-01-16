@@ -4,15 +4,13 @@ import io
 import requests
 from telebot import types as tb_types
 
-from src import utils
-
+import utils
+from formats import render_status_message
 from vendor import formgram as fg
-from src.init import bot, transmission
+from init import bot, transmission
 
 
 def submit_handler(form: 'AddTorrentForm', callback: tb_types.CallbackQuery):
-    # Local import to avoid cyclic import
-    from src.tg_handlers import render_status_message
 
     response = requests.get(form.torrent_link)
 
