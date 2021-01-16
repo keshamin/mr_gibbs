@@ -1,11 +1,11 @@
-from random import choice
+import random
 
 
 class M(object):
     def __getattribute__(self, item):
         attr = super().__getattribute__(item)
         if isinstance(attr, tuple):
-            return choice(attr)
+            return random.choice(attr)
         return attr
 
     YES = 'Да'
