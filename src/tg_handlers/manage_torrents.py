@@ -51,6 +51,23 @@ def register_handlers(bot: telebot.TeleBot):
         # Asynchronously update the message
         scheduler.add_job(update_status)
 
+
+    @bot.callback_query_handler(lambda callback: callback.data.split()[0].lower() == 'refresh')
+    def refresh_torrent_status(cb: telebot.types.CallbackQuery):
+        tid = cb.data.split()[1]
+        torrent = transmission.get_torrent(torrent_id=tid)
+        text, markup = render_status_message(torrent)
+
+        if cb.message.text == text:
+            bot.answer_callback_query(cb.id, m.REFRESH_UP_TO_DATE)
+            return
+
+        bot.edit_message_text(text,
+                              chat_id=cb.message.chat.id,
+                              message_id=cb.message.message_id,
+                              reply_markup=markup)
+        bot.answer_callback_query(cb.id, m.REFRESH_OK)
+
     @bot.callback_query_handler(lambda callback: callback.data.split()[0].lower() == 'remove')
     def remove_torrent(callback):
         tid = callback.data.split()[1]
@@ -89,7 +106,8 @@ def register_handlers(bot: telebot.TeleBot):
 
     @bot.callback_query_handler(lambda cb: cb.data.split()[0].lower() == 'files')
     def show_files(callback):
-        tid = callback.data.split()[1]
+        origin_msg: telebot.types.Message = callback.message
+        tid = parse_tid_from_status_message(origin_msg.text)
 
         files = transmission.get_files(tid)[int(tid)]
         for file_id in files:
