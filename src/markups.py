@@ -51,7 +51,7 @@ def get_inline_action_markup(tid):
 
     action_emoji = OrderedDict([
         ('start_stop', '⏯'),
-        ('files', '📂'),
+        ('refresh', '🔄'),
         ('remove', '🗑'),
     ])
     markup.add(
@@ -64,6 +64,7 @@ def get_inline_action_markup(tid):
 
 class ExtraActions:
     SET_LOCATION = 'set_location'
+    FILES_SELECTION = 'files'
     BACK_TO_MAIN = 'back_to_main'
 
 
@@ -71,7 +72,8 @@ def build_extra_actions_markup() -> types.InlineKeyboardMarkup:
     markup = types.InlineKeyboardMarkup(row_width=1)
 
     extra_actions = {
-        M.SET_LOCATION_BUTTON: ExtraActions.SET_LOCATION
+        M.SET_LOCATION_BUTTON: ExtraActions.SET_LOCATION,
+        M.SELECT_FILES_BUTTON: ExtraActions.FILES_SELECTION,
     }
 
     for label, data in extra_actions.items():
