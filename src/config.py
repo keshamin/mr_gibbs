@@ -1,4 +1,4 @@
-from ast import literal_eval
+import json
 import os
 from dotenv import load_dotenv
 
@@ -25,14 +25,15 @@ WEBHOOK_HOST = os.getenv('WEBHOOK_HOST') or '0.0.0.0'
 WEBHOOK_PORT = os.getenv('WEBHOOK_PORT') or 80
 
 ADMIN_ID = int(os.environ.get(prefixed('ADMIN_ID')))
-USERS_IDS = literal_eval(os.environ.get(prefixed('USERS_IDS'), default='[]'))
+USERS_IDS = json.loads(os.environ.get(prefixed('USERS_IDS'), default='[]'))
 
+TRANS_PROTOCOL = os.environ.get(prefixed('TRANS_PROTOCOL'))
 TRANS_HOST = os.environ.get(prefixed('TRANS_HOST'))
 TRANS_PORT = os.environ.get(prefixed('TRANS_PORT'))
 TRANS_USER = os.environ.get(prefixed('TRANS_USER'))
 TRANS_PASSWORD = os.environ.get(prefixed('TRANS_PASSWORD'))
 
-CATEGORIES_LAYOUT = literal_eval(os.environ.get(prefixed('CATEGORIES')))
+CATEGORIES_LAYOUT = json.loads(os.environ.get(prefixed('CATEGORIES')))
 
 if isinstance(CATEGORIES_LAYOUT, dict):
     CATEGORIES_LAYOUT = [{category: path} for category, path in CATEGORIES_LAYOUT.items()]

@@ -1,7 +1,8 @@
 import os
 import re
-from typing import Optional
+from typing import Optional, Union
 
+import transmission_rpc
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, quote
 from collections import OrderedDict
@@ -102,12 +103,12 @@ def splitall(path):
     return allparts
 
 
-def path_to_dict(path, file_dict=None):
+def path_to_dict(path, file: transmission_rpc.File = None):
     parts = splitall(path)
     if len(parts) > 1:
         next_path = '/'.join(parts[1:])
-        return {parts[0]: path_to_dict(next_path, file_dict=file_dict)}
-    return {path: file_dict}
+        return {parts[0]: path_to_dict(next_path, file=file)}
+    return {path: file}
 
 
 def unite_dicts(d1, d2):
@@ -130,7 +131,7 @@ def unite_dicts(d1, d2):
 def paths_to_dict(files):
     """Takes dict of files like {1: {'name': 'path/to/file', 'selected': False, ...}}
     """
-    path_dicts = [path_to_dict(files[file_id]['name'], file_dict=files[file_id]) for file_id in files]
+    path_dicts = [path_to_dict(file.name, file=file) for file in files]
 
     result = OrderedDict()
     for d in path_dicts:
@@ -145,16 +146,19 @@ def files_dict_part(files_dict, path):
     return files_dict
 
 
-def calc_selected_set(files_dict):
+def calc_selected_set(files_dict: Union[dict, transmission_rpc.File]):
     """
     This method looks through the files_dict and returns all values of 'selected' key in file items
     Basing on the output we can conclude if all files are (de)selected or mixed
     :return: one of {True}, {False} or {True, False}
     """
+    if isinstance(files_dict, transmission_rpc.File):
+        return {files_dict.selected}
+
     selected_set = set()
     for item in files_dict.values():
-        if 'file_id' in item:
-            selected_set.add(item['selected'])
+        if isinstance(files_dict, transmission_rpc.File):
+            selected_set.add(files_dict.selected)
         else:
             selected_set.union(calc_selected_set(item))
     return selected_set

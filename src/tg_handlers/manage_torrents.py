@@ -3,14 +3,14 @@ import time
 from typing import Union
 
 import telebot
-import transmissionrpc
+import transmission_rpc
+from transmission_rpc import Status
 
 import config
 from formats import parse_tid_from_status_message, render_status_message
 from init import transmission, m, scheduler
 from markups import get_inline_confirm_removing_markup, CallbackCommands, extra_actions_markup, \
     inline_file_browser_expired_markup, get_inline_files_markup, ExtraActions, get_inline_action_markup, cancel_markup
-from transmission_utils import TorrentStatus
 from utils import paths_to_dict, files_dict_part, humanize_bytes
 
 
@@ -18,21 +18,20 @@ def register_handlers(bot: telebot.TeleBot):
     
     @bot.callback_query_handler(lambda callback: callback.data.split()[0].lower() == 'start_stop')
     def start_stop_torrent(callback: telebot.types.CallbackQuery):
-        tid = callback.data.split()[1]
+        tid = int(callback.data.split()[1])
         try:
             torrent = transmission.get_torrent(tid)
         except KeyError:
             bot.send_message(callback.message.chat.id, f'Торрент #{tid} не существует!')
             return
 
-        status_code = torrent._fields['status'].value
-        to_start_torrent = status_code == TorrentStatus.STOPPED.value
+        to_start_torrent = torrent.status == Status.STOPPED
 
         if to_start_torrent:
-            torrent.start()
+            transmission.start_torrent(tid)
             bot.answer_callback_query(callback.id, m.TORRENT_STARTED(tid))
         else:
-            torrent.stop()
+            transmission.stop_torrent(tid)
             bot.answer_callback_query(callback.id, m.TORRENT_STOPPED(tid))
 
         def update_status():
@@ -54,7 +53,7 @@ def register_handlers(bot: telebot.TeleBot):
 
     @bot.callback_query_handler(lambda callback: callback.data.split()[0].lower() == 'refresh')
     def refresh_torrent_status(cb: telebot.types.CallbackQuery):
-        tid = cb.data.split()[1]
+        tid = int(cb.data.split()[1])
         torrent = transmission.get_torrent(torrent_id=tid)
         text, markup = render_status_message(torrent)
 
@@ -70,19 +69,19 @@ def register_handlers(bot: telebot.TeleBot):
 
     @bot.callback_query_handler(lambda callback: callback.data.split()[0].lower() == 'remove')
     def remove_torrent(callback):
-        tid = callback.data.split()[1]
+        tid = int(callback.data.split()[1])
         bot.send_message(callback.message.chat.id, m.REMOVE_CONFIRMATION(tid),
                          reply_markup=get_inline_confirm_removing_markup(tid))
 
     @bot.callback_query_handler(lambda cb: cb.data == CallbackCommands.CANCEL_MULTI_STEP_ACTION)
     def cancel_multi_step_command(cb: telebot.types.CallbackQuery):
-        if cb.message.chat.id in bot.next_step_handlers.keys():
-            del bot.next_step_handlers[cb.message.chat.id]
+        bot.clear_step_handler_by_chat_id(cb.message.chat.id)
         bot.delete_message(cb.message.chat.id, cb.message.message_id)
 
     @bot.callback_query_handler(lambda cb: cb.data.startswith('confirm_removing'))
     def confirm_removing(callback):
         answer, tid, expire_timestamp = callback.data.split()[1:]
+        tid = int(tid)
 
         if time.time() > float(expire_timestamp):
             bot.send_message(callback.message.chat.id, m.REMOVE_LINK_EXPIRED)
@@ -109,9 +108,7 @@ def register_handlers(bot: telebot.TeleBot):
         origin_msg: telebot.types.Message = callback.message
         tid = parse_tid_from_status_message(origin_msg.text)
 
-        files = transmission.get_files(tid)[int(tid)]
-        for file_id in files:
-            files[file_id]['file_id'] = file_id
+        files = transmission.get_torrent(tid).get_files()
 
         files_dict = paths_to_dict(files)
 
@@ -135,7 +132,7 @@ def register_handlers(bot: telebot.TeleBot):
     @bot.callback_query_handler(lambda cb: cb.data.split()[0].lower() == 'go_to')
     def go_to_files(callback):
         cb_splitted = callback.data.split()
-        tid = cb_splitted[1]
+        tid = int(cb_splitted[1])
 
         hexhash = cb_splitted[2]
         # go_to = ' '.join(cb_splitted[2:]) if len(cb_splitted) > 2 else None    # None in case when we return to root
@@ -169,6 +166,7 @@ def register_handlers(bot: telebot.TeleBot):
     @bot.callback_query_handler(lambda cb: cb.data.startswith('check ') or cb.data.startswith('uncheck '))
     def check_files(callback):
         action, tid, hexhash = callback.data.split()
+        tid = int(tid)
 
         with shelve.open(config.SHELVENAME) as db:
             path = db[f'{callback.message.chat.id}_hash_aliases'][hexhash]
@@ -177,15 +175,13 @@ def register_handlers(bot: telebot.TeleBot):
             tid: {}
         }
 
-        files = transmission.get_files(tid)[int(tid)]
-        file_ids = [file_id for file_id in files if files[file_id]['name'].startswith(path)]
+        files = transmission.get_torrent(tid).get_files()
+        file_ids = [file.id for file in files if file.name.startswith(path)]
 
-        for file_id in file_ids:
-            feed[tid][file_id] = {
-                'selected': True if action == 'check' else False
-            }
-
-        transmission.set_files(feed)
+        if action == 'check':
+            transmission.change_torrent(tid, files_wanted=file_ids)
+        else:
+            transmission.change_torrent(tid, files_unwanted=file_ids)
 
         if action == 'check':
             bot.send_message(callback.message.chat.id, m.FILES_MARKED(tid=tid, path=path))
@@ -215,18 +211,18 @@ def register_handlers(bot: telebot.TeleBot):
         torrent = transmission.get_torrent(torrent_id=tid)
         try:
             free_space = transmission.free_space(path)
-        except transmissionrpc.TransmissionError:
+        except transmission_rpc.TransmissionError:
             bot.send_message(message.chat.id, m.LOCATION_SET_FAILED)
             return
 
-        if free_space < torrent.sizeWhenDone:
+        if free_space < torrent.size_when_done:
             bot.send_message(message.chat.id,
                              m.NOT_ENOUGH_SPACE(humanize_bytes(torrent.sizeWhenDone), humanize_bytes(free_space)))
             return
 
         try:
-            torrent.locate_data(path)
-        except transmissionrpc.TransmissionError:
+            transmission.move_torrent_data(torrent.id, path)
+        except transmission_rpc.TransmissionError:
             bot.send_message(message.chat.id, m.LOCATION_SET_FAILED)
             return
 
