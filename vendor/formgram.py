@@ -1,7 +1,8 @@
 import copy
 import enum
+import json
 import re
-from collections import Iterable
+from typing import Iterable
 from dataclasses import dataclass
 from typing import Optional, Any, Dict, List, Tuple, Callable, Union
 
@@ -443,7 +444,6 @@ class BaseForm(metaclass=FormMeta):
     custom_buttons: Union[List[tb_types.InlineKeyboardButton],
                           List[List[tb_types.InlineKeyboardButton]]] = []
 
-    _meta_char = '\u2009'
     _meta_link_prefix = 'http://ke.mi/?meta='
     _meta_kv_separator = '\u0802'
     _meta_concatenator = '\u0801'
@@ -565,13 +565,12 @@ class BaseForm(metaclass=FormMeta):
         for field_name, field in self.fields:
             icon = field.get_field_icon()
             meta = field.get_meta()
+            meta_container = ''
             if len(meta) > 0:
-                meta_container = f'[{self._meta_char}]({self.pack_meta_as_link(field.get_meta())})'
-            else:
-                meta_container = self._meta_char
+                icon = f'[{icon}]({self.pack_meta_as_link(meta)})'
             value = field.to_repr(missing_value_str=self.missing_value_str)
             label = escape_md(field.label)
-            lines.append(f'{icon}{meta_container}{label}{self.separator}{value}')
+            lines.append(f'{icon} {label}{self.separator}{value}')
         return '\n'.join(lines)
 
     @classmethod
@@ -579,9 +578,8 @@ class BaseForm(metaclass=FormMeta):
         kwargs = {}
         text_lines = message.text.splitlines()
         for i, (text_line, html_line) in enumerate(zip(text_lines, message.html_text.splitlines())):
-
-            meta_char_idx = text_line.find(cls._meta_char)
-            text_line = text_line[meta_char_idx + 1:]  # Cut icon and meta
+            first_space_idx = text_line.find(' ')
+            text_line = text_line[first_space_idx + 1:]  # Cut icon
 
             sep_idx = text_line.find(cls.separator)
             # Last line is trimmed in Telegram, so when the value is missing

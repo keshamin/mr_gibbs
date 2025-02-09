@@ -4,6 +4,7 @@ import shelve
 from collections import OrderedDict
 from time import time
 
+import transmission_rpc
 from telebot import types
 
 from config import ADMIN_ID, SHELVENAME, REMOVE_DIALOG_TIMEOUT, CATEGORIES_LAYOUT
@@ -98,9 +99,9 @@ def get_inline_files_markup(tid, files_dict, current_position=None, chat_id=ADMI
             aliases_dict[hexhash] = path
             db[f'{chat_id}_hash_aliases'] = aliases_dict
 
-        if 'file_id' in files_subdict[item] and isinstance(files_subdict[item]['file_id'], int):
+        if isinstance(files_subdict[item], transmission_rpc.File):
             dir_file_icon = '📄'
-            tick_icon = '☀️' if files_subdict[item]['selected'] else '❄️'
+            tick_icon = '☀️' if files_subdict[item].selected else '❄️'
         else:
             dir_file_icon = '📦'
             selected_set = calc_selected_set(files_subdict[item])
